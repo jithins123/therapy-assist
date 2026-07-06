@@ -26,7 +26,9 @@ Then open `http://localhost:3000`.
 1. Import this GitHub repository into Vercel.
 2. Keep the framework preset as `Next.js`.
 3. Use the default build command: `next build`.
-4. Use the default output settings.
+4. Leave the output directory blank. Do not set it to `public`.
+
+This repo includes `vercel.json` to force the Next.js framework preset and clear an accidental static-site output directory setting.
 
 ## Next planned step
 
