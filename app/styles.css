@@ -106,12 +106,17 @@ h2 {
 }
 
 .transcriptPanel,
-.cuePanel {
+.cuePanel,
+.logPanel {
   background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
-  min-height: 640px;
   padding: 20px;
+}
+
+.transcriptPanel,
+.cuePanel {
+  min-height: 640px;
 }
 
 .panelHeader {
@@ -120,6 +125,10 @@ h2 {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+}
+
+.compactHeader {
+  margin-bottom: 12px;
 }
 
 .buttonRow {
@@ -257,23 +266,52 @@ blockquote {
   margin-bottom: 12px;
 }
 
-.questions {
+.questions,
+.cueActions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.questions button {
+.questions button,
+.cueActions button {
+  align-items: center;
   background: #f7f7f3;
   border: 1px solid var(--line);
   color: #303834;
   cursor: pointer;
+  display: inline-flex;
+  gap: 7px;
   min-height: 34px;
   padding: 7px 10px;
 }
 
-.questions button:hover {
+.questions button:hover,
+.cueActions button:hover {
   border-color: #9fb9ad;
+}
+
+.cueActions {
+  border-top: 1px solid #eeeeea;
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.cueActions button:first-child {
+  background: #f5efe1;
+  border-color: #dfcfac;
+  color: #6b4a15;
+}
+
+.cueActions button:last-child {
+  background: #eaf3ed;
+  border-color: #c7dfd1;
+  color: #215b46;
+}
+
+.cueActions button:disabled {
+  cursor: default;
+  opacity: 0.65;
 }
 
 .emptyState {
@@ -298,6 +336,50 @@ blockquote {
   line-height: 1.5;
   margin-bottom: 0;
   max-width: 300px;
+}
+
+.sessionLog {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: 1fr 1fr;
+  margin: 22px auto 0;
+  max-width: 1320px;
+}
+
+.logPanel {
+  min-height: 180px;
+}
+
+.logList {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.logItem {
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: 12px;
+}
+
+.logItem p {
+  color: #38413d;
+  font-size: 14px;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+.logItem strong {
+  color: var(--green);
+  font-size: 14px;
+}
+
+.logEmpty {
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 0;
 }
 
 .ruleStrip {
@@ -331,7 +413,8 @@ blockquote {
     flex-direction: column;
   }
 
-  .workspace {
+  .workspace,
+  .sessionLog {
     grid-template-columns: 1fr;
   }
 
@@ -351,7 +434,8 @@ blockquote {
   }
 
   .transcriptPanel,
-  .cuePanel {
+  .cuePanel,
+  .logPanel {
     padding: 14px;
   }
 
