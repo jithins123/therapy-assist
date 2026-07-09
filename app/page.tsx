@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   BookmarkPlus,
@@ -10,7 +10,9 @@ import {
   Highlighter,
   ListChecks,
   Mic,
+  MonitorUp,
   Sparkles,
+  Square,
   Trash2
 } from "lucide-react";
 import { analyzeTranscript, type CuePriority, type MetaModelCue } from "./lib/metaModelRules";
@@ -27,10 +29,18 @@ type CueLogEntry = MetaModelCue & {
   loggedAt: string;
 };
 
+type CaptureSource = "mic" | "browser";
+
 export default function Home() {
   const [transcript, setTranscript] = useState(sampleTranscript);
   const [keptCues, setKeptCues] = useState<CueLogEntry[]>([]);
   const [reviewedCues, setReviewedCues] = useState<CueLogEntry[]>([]);
+  const [captureSource, setCaptureSource] = useState<CaptureSource | null>(null);
+  const [captureStatus, setCaptureStatus] = useState("Idle");
+  const [transcriptionError, setTranscriptionError] = useState("");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const isRecording = captureSource !== null;
   const cues = useMemo(() => analyzeTranscript(transcript), [transcript]);
   const reviewedCueIds = useMemo(() => new Set(reviewedCues.map((cue) => cue.id)), [reviewedCues]);
   const keptCueIds = useMemo(() => new Set(keptCues.map((cue) => cue.id)), [keptCues]);
@@ -56,6 +66,96 @@ export default function Home() {
     });
   }
 
+  async function startCapture(source: CaptureSource) {
+    if (isRecording) {
+      return;
+    }
+
+    setTranscriptionError("");
+    setCaptureStatus(source === "mic" ? "Requesting microphone..." : "Choose a tab or screen with audio enabled...");
+
+    try {
+      const stream = source === "mic" ? await getMicrophoneStream() : await getBrowserAudioStream();
+      const audioTracks = stream.getAudioTracks();
+
+      if (audioTracks.length === 0) {
+        stopStream(stream);
+        throw new Error("No audio track was shared. For browser audio, choose a browser tab and enable tab audio sharing.");
+      }
+
+      const recorder = new MediaRecorder(stream, getRecorderOptions());
+      mediaRecorderRef.current = recorder;
+      streamRef.current = stream;
+
+      recorder.addEventListener("dataavailable", (event) => {
+        if (event.data.size > 1024) {
+          void transcribeChunk(event.data, source);
+        }
+      });
+
+      recorder.addEventListener("stop", () => {
+        stopStream(stream);
+      });
+
+      stream.getTracks().forEach((track) => {
+        track.addEventListener("ended", stopCapture);
+      });
+
+      recorder.start(8000);
+      setCaptureSource(source);
+      setCaptureStatus(source === "mic" ? "Listening to microphone" : "Listening to browser audio");
+    } catch (error) {
+      setCaptureSource(null);
+      setCaptureStatus("Idle");
+      setTranscriptionError(error instanceof Error ? error.message : "Unable to start audio capture.");
+    }
+  }
+
+  function stopCapture() {
+    const recorder = mediaRecorderRef.current;
+
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+
+    if (streamRef.current) {
+      stopStream(streamRef.current);
+    }
+
+    mediaRecorderRef.current = null;
+    streamRef.current = null;
+    setCaptureSource(null);
+    setCaptureStatus("Idle");
+  }
+
+  async function transcribeChunk(blob: Blob, source: CaptureSource) {
+    setCaptureStatus(source === "mic" ? "Transcribing microphone audio..." : "Transcribing browser audio...");
+
+    const form = new FormData();
+    form.append("audio", blob, `session-${source}-${Date.now()}.webm`);
+
+    try {
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: form
+      });
+      const result = (await response.json()) as { text?: string; error?: string };
+
+      if (!response.ok) {
+        throw new Error(result.error || "Transcription failed.");
+      }
+
+      if (result.text) {
+        setTranscript((current) => [current.trim(), result.text].filter(Boolean).join(" "));
+      }
+
+      setCaptureStatus(source === "mic" ? "Listening to microphone" : "Listening to browser audio");
+    } catch (error) {
+      setTranscriptionError(error instanceof Error ? error.message : "Transcription failed.");
+      setCaptureStatus(source === "mic" ? "Listening to microphone" : "Listening to browser audio");
+    }
+  }
+
   return (
     <main className="shell">
       <section className="topbar">
@@ -64,8 +164,8 @@ export default function Home() {
           <h1>Session Cue</h1>
         </div>
         <div className="status">
-          <span className="statusDot" />
-          Rule engine active
+          <span className={isRecording ? "statusDot recording" : "statusDot"} />
+          {captureStatus}
         </div>
       </section>
 
@@ -77,19 +177,33 @@ export default function Home() {
               <h2>Client language</h2>
             </div>
             <div className="buttonRow">
-              <button className="iconButton" type="button" title="Microphone transcription coming next" aria-label="Microphone transcription coming next">
-                <Mic size={18} />
-              </button>
               <button className="iconButton" type="button" title="Clear transcript" aria-label="Clear transcript" onClick={() => setTranscript("")}>
                 <Trash2 size={18} />
               </button>
             </div>
           </div>
 
+          <div className="captureControls" aria-label="Audio capture controls">
+            <button className="captureButton" type="button" onClick={() => void startCapture("mic")} disabled={isRecording}>
+              <Mic size={18} />
+              Mic
+            </button>
+            <button className="captureButton" type="button" onClick={() => void startCapture("browser")} disabled={isRecording}>
+              <MonitorUp size={18} />
+              Browser audio
+            </button>
+            <button className="captureButton stop" type="button" onClick={stopCapture} disabled={!isRecording}>
+              <Square size={16} />
+              Stop
+            </button>
+          </div>
+
+          {transcriptionError ? <div className="captureError">{transcriptionError}</div> : null}
+
           <textarea
             value={transcript}
             onChange={(event) => setTranscript(event.target.value)}
-            placeholder="Paste or type client sentences here. Live microphone capture comes next."
+            placeholder="Paste, type, or capture client sentences here."
             aria-label="Session transcript"
           />
 
@@ -214,4 +328,31 @@ function CueLogList({ cues, emptyText }: { cues: CueLogEntry[]; emptyText: strin
       ))}
     </div>
   );
+}
+
+async function getMicrophoneStream() {
+  return navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true
+    }
+  });
+}
+
+async function getBrowserAudioStream() {
+  return navigator.mediaDevices.getDisplayMedia({
+    audio: true,
+    video: true
+  });
+}
+
+function stopStream(stream: MediaStream) {
+  stream.getTracks().forEach((track) => track.stop());
+}
+
+function getRecorderOptions(): MediaRecorderOptions | undefined {
+  const preferredTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+  const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
+
+  return mimeType ? { mimeType } : undefined;
 }
