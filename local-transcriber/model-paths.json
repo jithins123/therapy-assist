@@ -1,0 +1,8 @@
+{
+  "handyModelDirectory": "C:\\Users\\jithi\\AppData\\Roaming\\com.pais.handy\\models\\parakeet-tdt-0.6b-v3-int8",
+  "preprocessor": "nemo128.onnx",
+  "encoder": "encoder-model.int8.onnx",
+  "decoderJoint": "decoder_joint-model.int8.onnx",
+  "vocab": "vocab.txt",
+  "vad": "C:\\Users\\jithi\\AppData\\Local\\Handy\\resources\\models\\silero_vad_v4.onnx"
+}
