@@ -146,6 +146,13 @@ export default function Home() {
     }, SEGMENT_MS);
   }
 
+  function clearSegmentTimer() {
+    if (segmentTimerRef.current !== null) {
+      window.clearTimeout(segmentTimerRef.current);
+      segmentTimerRef.current = null;
+    }
+  }
+
   function stopCapture() {
     isCapturingRef.current = false;
     clearSegmentTimer();
@@ -402,20 +409,6 @@ function createMediaRecorder(stream: MediaStream) {
   } catch {
     return new MediaRecorder(stream);
   }
-}
-
-function clearSegmentTimer() {
-  if (segmentTimerIsSet()) {
-    window.clearTimeout(segmentTimerRefValue());
-  }
-}
-
-function segmentTimerIsSet() {
-  return false;
-}
-
-function segmentTimerRefValue() {
-  return 0;
 }
 
 function stopStream(stream: MediaStream) {
