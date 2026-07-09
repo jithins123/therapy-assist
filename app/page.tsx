@@ -75,17 +75,18 @@ export default function Home() {
     setCaptureStatus(source === "mic" ? "Requesting microphone..." : "Choose a tab or screen with audio enabled...");
 
     try {
-      const stream = source === "mic" ? await getMicrophoneStream() : await getBrowserAudioStream();
-      const audioTracks = stream.getAudioTracks();
+      const captureStream = source === "mic" ? await getMicrophoneStream() : await getBrowserAudioStream();
+      const audioTracks = captureStream.getAudioTracks();
 
       if (audioTracks.length === 0) {
-        stopStream(stream);
+        stopStream(captureStream);
         throw new Error("No audio track was shared. For browser audio, choose a browser tab and enable tab audio sharing.");
       }
 
-      const recorder = new MediaRecorder(stream, getRecorderOptions());
+      const recordingStream = new MediaStream(audioTracks);
+      const recorder = createMediaRecorder(recordingStream);
       mediaRecorderRef.current = recorder;
-      streamRef.current = stream;
+      streamRef.current = captureStream;
 
       recorder.addEventListener("dataavailable", (event) => {
         if (event.data.size > 1024) {
@@ -94,10 +95,10 @@ export default function Home() {
       });
 
       recorder.addEventListener("stop", () => {
-        stopStream(stream);
+        stopStream(captureStream);
       });
 
-      stream.getTracks().forEach((track) => {
+      captureStream.getTracks().forEach((track) => {
         track.addEventListener("ended", stopCapture);
       });
 
@@ -346,12 +347,22 @@ async function getBrowserAudioStream() {
   });
 }
 
+function createMediaRecorder(stream: MediaStream) {
+  const options = getRecorderOptions();
+
+  try {
+    return options ? new MediaRecorder(stream, options) : new MediaRecorder(stream);
+  } catch {
+    return new MediaRecorder(stream);
+  }
+}
+
 function stopStream(stream: MediaStream) {
   stream.getTracks().forEach((track) => track.stop());
 }
 
 function getRecorderOptions(): MediaRecorderOptions | undefined {
-  const preferredTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+  const preferredTypes = ["audio/webm;codecs=opus", "audio/webm"];
   const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
 
   return mimeType ? { mimeType } : undefined;
