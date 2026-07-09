@@ -26,6 +26,8 @@ OPENAI_API_KEY=your_openai_api_key
 
 The key is used only by the server route at `/api/transcribe`; it is not exposed to the browser.
 
+After adding or changing the key in Vercel, redeploy the project. Existing deployments do not automatically pick up newly added environment variables.
+
 ## Run locally
 
 ```bash
@@ -44,12 +46,15 @@ Create a local `.env.local` file with `OPENAI_API_KEY` if you want transcription
 3. Use the default build command: `next build`.
 4. Leave the output directory blank. Do not set it to `public`.
 5. Add `OPENAI_API_KEY` in Environment Variables.
+6. Redeploy after the environment variable is saved.
 
 This repo includes `vercel.json` to force the Next.js framework preset and clear an accidental static-site output directory setting.
 
 ## Browser audio notes
 
 For online meetings, click `Browser audio`, choose the meeting tab or screen from the browser picker, and make sure audio sharing is enabled. Browser support varies; Chrome usually gives the best tab-audio capture behavior.
+
+If browser audio does not start, choose a Chrome tab instead of an entire window, and make sure `Share tab audio` is checked in the picker.
 
 ## Clinical note
 
