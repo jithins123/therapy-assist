@@ -97,6 +97,11 @@ h2 {
   width: 9px;
 }
 
+.statusDot.recording {
+  background: var(--red);
+  box-shadow: 0 0 0 5px rgba(168, 75, 63, 0.14);
+}
+
 .workspace {
   display: grid;
   gap: 22px;
@@ -151,6 +156,58 @@ h2 {
 .iconButton:hover {
   background: #e7eee9;
   border-color: #b8d4c5;
+}
+
+.captureControls {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.captureButton {
+  align-items: center;
+  background: #eef6f2;
+  border: 1px solid #c7dfd1;
+  color: #215b46;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px 12px;
+}
+
+.captureButton:nth-child(2) {
+  background: #edf3f8;
+  border-color: #c6d8e8;
+  color: #245f8f;
+}
+
+.captureButton.stop {
+  background: #f8eeee;
+  border-color: #e2c6c2;
+  color: var(--red);
+}
+
+.captureButton:hover:not(:disabled) {
+  filter: brightness(0.98);
+}
+
+.captureButton:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.captureError {
+  background: #fff4f2;
+  border: 1px solid #eccbc5;
+  color: #84382e;
+  font-size: 14px;
+  line-height: 1.4;
+  margin-bottom: 14px;
+  padding: 10px 12px;
 }
 
 textarea {
@@ -441,5 +498,9 @@ blockquote {
 
   .panelHeader {
     align-items: flex-start;
+  }
+
+  .captureControls {
+    grid-template-columns: 1fr;
   }
 }
