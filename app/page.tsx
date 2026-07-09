@@ -18,6 +18,7 @@ import {
 import { analyzeTranscript, type CuePriority, type MetaModelCue } from "./lib/metaModelRules";
 
 const sampleTranscript = `Everyone hates me. I can't tell my partner what I need. She thinks I am too much. I have to keep everyone happy. It is selfish to ask for space.`;
+const SEGMENT_MS = 8000;
 
 const priorityLabel: Record<CuePriority, string> = {
   high: "Strong cue",
@@ -39,7 +40,10 @@ export default function Home() {
   const [captureStatus, setCaptureStatus] = useState("Idle");
   const [transcriptionError, setTranscriptionError] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const captureStreamRef = useRef<MediaStream | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const segmentTimerRef = useRef<number | null>(null);
+  const isCapturingRef = useRef(false);
   const isRecording = captureSource !== null;
   const cues = useMemo(() => analyzeTranscript(transcript), [transcript]);
   const reviewedCueIds = useMemo(() => new Set(reviewedCues.map((cue) => cue.id)), [reviewedCues]);
@@ -84,27 +88,17 @@ export default function Home() {
       }
 
       const recordingStream = new MediaStream(audioTracks);
-      const recorder = createMediaRecorder(recordingStream);
-      mediaRecorderRef.current = recorder;
-      streamRef.current = captureStream;
-
-      recorder.addEventListener("dataavailable", (event) => {
-        if (event.data.size > 1024) {
-          void transcribeChunk(event.data, source);
-        }
-      });
-
-      recorder.addEventListener("stop", () => {
-        stopStream(captureStream);
-      });
+      captureStreamRef.current = captureStream;
+      recordingStreamRef.current = recordingStream;
+      isCapturingRef.current = true;
 
       captureStream.getTracks().forEach((track) => {
         track.addEventListener("ended", stopCapture);
       });
 
-      recorder.start(8000);
       setCaptureSource(source);
       setCaptureStatus(source === "mic" ? "Listening to microphone" : "Listening to browser audio");
+      startRecordingSegment(recordingStream, source);
     } catch (error) {
       setCaptureSource(null);
       setCaptureStatus("Idle");
@@ -112,19 +106,67 @@ export default function Home() {
     }
   }
 
+  function startRecordingSegment(recordingStream: MediaStream, source: CaptureSource) {
+    if (!isCapturingRef.current || recordingStream.getAudioTracks().length === 0) {
+      return;
+    }
+
+    const recorder = createMediaRecorder(recordingStream);
+    const chunks: Blob[] = [];
+    mediaRecorderRef.current = recorder;
+
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data.size > 0) {
+        chunks.push(event.data);
+      }
+    });
+
+    recorder.addEventListener("stop", () => {
+      clearSegmentTimer();
+
+      if (chunks.length > 0) {
+        const mimeType = recorder.mimeType || chunks[0].type || "audio/webm";
+        const blob = new Blob(chunks, { type: mimeType });
+
+        if (blob.size > 1024) {
+          void transcribeChunk(blob, source);
+        }
+      }
+
+      if (isCapturingRef.current) {
+        window.setTimeout(() => startRecordingSegment(recordingStream, source), 100);
+      }
+    });
+
+    recorder.start();
+    segmentTimerRef.current = window.setTimeout(() => {
+      if (recorder.state === "recording") {
+        recorder.stop();
+      }
+    }, SEGMENT_MS);
+  }
+
   function stopCapture() {
+    isCapturingRef.current = false;
+    clearSegmentTimer();
+
     const recorder = mediaRecorderRef.current;
 
     if (recorder && recorder.state !== "inactive") {
       recorder.stop();
     }
 
-    if (streamRef.current) {
-      stopStream(streamRef.current);
+    if (captureStreamRef.current) {
+      stopStream(captureStreamRef.current);
+    }
+
+    if (recordingStreamRef.current) {
+      stopStream(recordingStreamRef.current);
     }
 
     mediaRecorderRef.current = null;
-    streamRef.current = null;
+    captureStreamRef.current = null;
+    recordingStreamRef.current = null;
     setCaptureSource(null);
     setCaptureStatus("Idle");
   }
@@ -150,10 +192,15 @@ export default function Home() {
         setTranscript((current) => [current.trim(), result.text].filter(Boolean).join(" "));
       }
 
-      setCaptureStatus(source === "mic" ? "Listening to microphone" : "Listening to browser audio");
+      if (isCapturingRef.current) {
+        setCaptureStatus(source === "mic" ? "Listening to microphone" : "Listening to browser audio");
+      }
     } catch (error) {
       setTranscriptionError(error instanceof Error ? error.message : "Transcription failed.");
-      setCaptureStatus(source === "mic" ? "Listening to microphone" : "Listening to browser audio");
+
+      if (isCapturingRef.current) {
+        setCaptureStatus(source === "mic" ? "Listening to microphone" : "Listening to browser audio");
+      }
     }
   }
 
@@ -355,6 +402,20 @@ function createMediaRecorder(stream: MediaStream) {
   } catch {
     return new MediaRecorder(stream);
   }
+}
+
+function clearSegmentTimer() {
+  if (segmentTimerIsSet()) {
+    window.clearTimeout(segmentTimerRefValue());
+  }
+}
+
+function segmentTimerIsSet() {
+  return false;
+}
+
+function segmentTimerRefValue() {
+  return 0;
 }
 
 function stopStream(stream: MediaStream) {
