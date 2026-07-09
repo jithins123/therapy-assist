@@ -19,6 +19,7 @@ import { analyzeTranscript, type CuePriority, type MetaModelCue } from "./lib/me
 
 const sampleTranscript = `Everyone hates me. I can't tell my partner what I need. She thinks I am too much. I have to keep everyone happy. It is selfish to ask for space.`;
 const SEGMENT_MS = 8000;
+const LOCAL_TRANSCRIBER_URL = "http://127.0.0.1:4317/transcribe";
 
 const priorityLabel: Record<CuePriority, string> = {
   high: "Strong cue",
@@ -31,6 +32,11 @@ type CueLogEntry = MetaModelCue & {
 };
 
 type CaptureSource = "mic" | "browser";
+
+type TranscriptionResult = {
+  text?: string;
+  error?: string;
+};
 
 export default function Home() {
   const [transcript, setTranscript] = useState(sampleTranscript);
@@ -181,19 +187,8 @@ export default function Home() {
   async function transcribeChunk(blob: Blob, source: CaptureSource) {
     setCaptureStatus(source === "mic" ? "Transcribing microphone audio..." : "Transcribing browser audio...");
 
-    const form = new FormData();
-    form.append("audio", blob, `session-${source}-${Date.now()}.webm`);
-
     try {
-      const response = await fetch("/api/transcribe", {
-        method: "POST",
-        body: form
-      });
-      const result = (await response.json()) as { text?: string; error?: string };
-
-      if (!response.ok) {
-        throw new Error(result.error || "Transcription failed.");
-      }
+      const result = await transcribeWithLocalFallback(blob, source);
 
       if (result.text) {
         setTranscript((current) => [current.trim(), result.text].filter(Boolean).join(" "));
@@ -383,6 +378,40 @@ function CueLogList({ cues, emptyText }: { cues: CueLogEntry[]; emptyText: strin
       ))}
     </div>
   );
+}
+
+async function transcribeWithLocalFallback(blob: Blob, source: CaptureSource): Promise<TranscriptionResult> {
+  try {
+    return await postAudioForTranscription(LOCAL_TRANSCRIBER_URL, blob, source, 900);
+  } catch {
+    return postAudioForTranscription("/api/transcribe", blob, source);
+  }
+}
+
+async function postAudioForTranscription(endpoint: string, blob: Blob, source: CaptureSource, timeoutMs?: number): Promise<TranscriptionResult> {
+  const controller = new AbortController();
+  const timeout = timeoutMs ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
+  const form = new FormData();
+  form.append("audio", blob, `session-${source}-${Date.now()}.webm`);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      body: form,
+      signal: controller.signal
+    });
+    const result = (await response.json()) as TranscriptionResult;
+
+    if (!response.ok) {
+      throw new Error(result.error || "Transcription failed.");
+    }
+
+    return result;
+  } finally {
+    if (timeout !== null) {
+      window.clearTimeout(timeout);
+    }
+  }
 }
 
 async function getMicrophoneStream() {
